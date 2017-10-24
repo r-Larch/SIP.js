@@ -491,6 +491,7 @@ Session.prototype = {
           if (hasReferListener) {
             this.emit('referRequested', referContext);
           } else {
+            this.logger.log('No referRequested listeners, automatically accepting and following the refer');
             referContext.accept({followRefer: true});
           }
         }
@@ -1939,6 +1940,8 @@ ReferServerContext.prototype = {
     this.emit('referRequestAccepted', this);
 
     if (options.followRefer) {
+      this.logger.log('Accepted refer, attempting to automatically follow it');
+
       var target = this.referTo.uri;
       if (!target.scheme.match("^sips?$")) {
         this.logger.error('SIP.js can only automatically follow SIP refer target');
@@ -1959,6 +1962,7 @@ ReferServerContext.prototype = {
 
       this.targetSession.once('progress', this.progress.bind(this));
       this.targetSession.once('accepted', function() {
+        this.logger.log('Successfully followed the refer');
         this.sendNotify('SIP/2.0 200 OK');
         this.emit('referAccepted', this);
         if (this.referredSession) {
@@ -1969,6 +1973,7 @@ ReferServerContext.prototype = {
       this.targetSession.once('failed', this.reject.bind(this));
 
     } else {
+      this.logger.log('Accepted refer, but did not automatically follow it');
       this.sendNotify('SIP/2.0 200 OK');
       this.emit('referAccepted', this);
       if (this.referredSession) {
