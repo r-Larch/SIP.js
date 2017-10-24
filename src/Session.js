@@ -1773,6 +1773,8 @@ ReferClientContext = function(ua, applicant, target, options) {
     throw new TypeError('Not enough arguments');
   }
 
+  SIP.Utils.augment(this, SIP.ClientContext, [ua, SIP.C.REFER, target, options]);
+
   this.applicant = applicant;
 
   var withReplaces = target instanceof SIP.InviteServerContext ||
@@ -1864,6 +1866,8 @@ SIP.ReferClientContext = ReferClientContext;
 ReferServerContext = function(ua, request) {
   SIP.Utils.augment(this, SIP.ServerContext, [ua, request]);
 
+  this.ua = ua;
+
   this.status = C.STATUS_INVITE_RECEIVED;
   this.from_tag = request.from_tag;
   this.id = request.call_id + this.from_tag;
@@ -1871,6 +1875,16 @@ ReferServerContext = function(ua, request) {
   this.contact = this.ua.contact.toString();
 
   this.referredSession = this.ua.findSession(request);
+
+  // Needed to send the NOTIFY's
+  this.cseq = request.cseq; // TODO: Update the referred session's cseq?
+  this.call_id = this.request.call_id;
+  this.from_uri = this.request.to.uri;
+  this.from_tag = this.request.to.parameters.tag;
+  this.remote_target = this.request.headers.Contact[0].parsed.uri;
+  this.to_uri = this.request.from.uri;
+  this.to_tag = this.request.from_tag;
+  this.route_set = this.request.getHeaders('record-route');
 
   this.receiveNonInviteResponse = function () {};
 
@@ -1893,7 +1907,9 @@ ReferServerContext.prototype = {
   progress: function() {
     this.sendNotify('SIP/2.0 100 Trying');
     this.emit('referProgress', this);
-    this.referredSession.emit('referProgress', this);
+    if (this.referredSession) {
+      this.referredSession.emit('referProgress', this);
+    }
   },
 
   reject: function() {
@@ -1904,7 +1920,9 @@ ReferServerContext.prototype = {
     this.status = C.STATUS_TERMINATED;
     this.request.reply(603, 'Declined');
     this.emit('referRejected', this);
-    this.referredSession.emit('referRejected', this);
+    if (this.referredSession) {
+      this.referredSession.emit('referRejected', this);
+    }
   },
 
   accept: function(options, modifiers) {
@@ -1943,7 +1961,9 @@ ReferServerContext.prototype = {
       this.targetSession.once('accepted', function() {
         this.sendNotify('SIP/2.0 200 OK');
         this.emit('referAccepted', this);
-        this.referredSession.emit('referAccepted', this);
+        if (this.referredSession) {
+          this.referredSession.emit('referAccepted', this);
+        }
       }.bind(this));
       this.targetSession.once('rejected', this.reject.bind(this));
       this.targetSession.once('failed', this.reject.bind(this));
@@ -1951,22 +1971,48 @@ ReferServerContext.prototype = {
     } else {
       this.sendNotify('SIP/2.0 200 OK');
       this.emit('referAccepted', this);
-      this.referredSession.emit('referAccepted', this);
+      if (this.referredSession) {
+        this.referredSession.emit('referAccepted', this);
+      }
     }
   },
 
   // Private function to send notifies to the referror
   sendNotify: function(body) {
-    this.referredSession.sendRequest(SIP.C.NOTIFY, {
-      // These headers are always static
-      extraHeaders:[
+    var request = new SIP.OutgoingRequest(
+      SIP.C.NOTIFY,
+      this.remote_target,
+      this.ua,
+      {
+        // First NOTIFY should have the same cseq as the refer. Then it should increment
+        cseq: this.cseq += 1,  // randomly generated then incremented on each additional notify
+        call_id: this.call_id, // refer call_id
+        from_uri: this.from_uri,
+        from_tag: this.from_tag,
+        to_uri: this.to_uri,
+        to_tag: this.to_tag,
+        route_set: this.route_set
+      },
+      [
         'Event: refer',
         'Subscription-State: terminated',
         'Content-Type: message/sipfrag'
       ],
-      body: body,
-      receiveResponse: function() {}
-    });
+      body
+    );
+
+    new SIP.RequestSender({
+      request: request,
+      onRequestTimeout: function() {
+        return;
+      },
+      onTransportError: function() {
+        return;
+      },
+      receiveResponse: function() {
+        return;
+      }
+    }, this.ua).send();
   }
 };
 
