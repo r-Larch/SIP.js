@@ -158,7 +158,7 @@ Session.prototype = {
 
     this.emit('referRequested', this.referContext);
 
-    this.referContext.refer();
+    this.referContext.refer(options);
   },
 
   sendRequest: function(method,options) {
@@ -1820,20 +1820,22 @@ ReferClientContext = function(ua, applicant, target, options) {
 ReferClientContext.prototype = {
 
   refer: function(options) {
-    // Passed options will override global options
-    options = options || this.options || {};
+    options = options || {};
 
-    if (options.hold && this.applicant.hold) {
-      this.applicant.hold();
+    var extraHeaders = (this.extraHeaders || []).slice();
+    if (options.extraHeaders) {
+      extraHeaders.concat(options.extraHeaders);
     }
 
     this.applicant.sendRequest(SIP.C.REFER, {
       extraHeaders: this.extraHeaders,
-      body: options.body,
       receiveResponse: function (response) {
         if ( ! /^2[0-9]{2}$/.test(response.status_code) ) {
           this.emit('referRequestAccepted', this);
           return;
+        }
+        if (options.receiveResponse) {
+          options.receiveResponse(response);
         }
       }.bind(this)
     });
