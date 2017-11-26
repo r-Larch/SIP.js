@@ -4,7 +4,8 @@
     <VSToolsPath Condition="'$(VSToolsPath)' == ''">$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)</VSToolsPath>
     <Name>SipJs</Name>
     <RootNamespace>SipJs</RootNamespace>
-    <ScriptArguments></ScriptArguments>
+    <ScriptArguments>
+    </ScriptArguments>
   </PropertyGroup>
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
@@ -33,10 +34,9 @@
     <Folder Include="src\Dialog\" />
     <Folder Include="src\Grammar\" />
     <Folder Include="src\Grammar\src\" />
-    <Folder Include="src\obj\" />
-    <Folder Include="src\obj\Debug\" />
     <Folder Include="src\Session\" />
     <Folder Include="src\WebRTC\" />
+    <Folder Include="src\WebRTC\Phone\" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="karma.conf.js" />
@@ -71,7 +71,10 @@
     <Compile Include="src\URI.js" />
     <Compile Include="src\Utils.js" />
     <Compile Include="src\WebRTC\Modifiers.js" />
+    <Compile Include="src\WebRTC\Phone\AudioPlayer.js" />
+    <Compile Include="src\WebRTC\Phone\CallSession.js" />
     <Compile Include="src\WebRTC\SessionDescriptionHandler.js" />
+    <Compile Include="src\WebRTC\Phone.js" />
     <Compile Include="src\WebRTC\Simple.js" />
     <Compile Include="webpack.config.js" />
   </ItemGroup>
@@ -90,7 +93,6 @@
   <!-- Do not delete the following Import Project.  While this appears to do nothing it is a marker for setting TypeScript properties before our import that depends on them. -->
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\TypeScript\Microsoft.TypeScript.targets" Condition="False" />
   <Import Project="$(VSToolsPath)\Node.js Tools\Microsoft.NodejsTools.targets" />
-
   <!-- <Target Name="BeforeBuild">
   </Target>
   <Target Name="AfterBuild">

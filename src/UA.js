@@ -235,8 +235,12 @@ UA.prototype.afterConnected = function afterConnected (callback) {
 UA.prototype.invite = function(target, options, modifiers) {
   var context = new SIP.InviteClientContext(this, target, options, modifiers);
 
-  this.afterConnected(context.invite.bind(context));
-  this.emit('inviteSent', context);
+  // call this delaied to give the caller time to bind eventlistener
+  setTimeout(function() {
+    this.afterConnected(context.invite.bind(context));
+    this.emit('inviteSent', context);
+  }.bind(this), 5);
+
   return context;
 };
 
