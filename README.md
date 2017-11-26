@@ -5,6 +5,98 @@
 A JavaScript SIP stack for WebRTC, instant messaging, and more!
 
 
+## This fork offers a simple multi session audio/video phone
+
+Use it like this:
+
+<aside class="warning">
+This is not released now!
+</aside>
+
+```javascript
+
+var phone = new SIP.WebRTC.Phone({
+    media: {
+        remote: {
+            audio: $('<audio></audio>').appendTo('body')[0],
+            video: $('<video></video>').appendTo('body')[0]
+        },
+        local: {
+            video: $('<video muted></video>').appendTo('body')[0]
+        }
+    },
+    sounds: {
+        dtmf: $('<audio><source src="/content/sounds/dtmf.wav" type="audio/mpeg"/></audio>').appendTo('body')[0],
+        ringtone: $('<audio><source src="/content/sounds/ringtone.wav" type="audio/mpeg"/></audio>').appendTo('body')[0],
+        ringbacktone: $('<audio><source src="/content/sounds/ringbacktone.wav" type="audio/mpeg"/></audio>').appendTo('body')[0]
+    },
+    ua: {
+        wsServers: ['wss://my.webrtc.endpoint.com:8089/ws'],
+
+        displayName: 'Bob',
+        uri: 'Bob@myrealm.com',
+        authorizationUser: 'Bob',
+        password: 'MyPassword',
+
+        log: 'debug', //'log', 'warn', 'error'
+        traceSip: true // log sip requsts and responses
+        // ...
+    }
+});
+
+phone.on('ringing', function (calSession) {
+    setupCallsession(callSession);
+
+    // answare the call by simply do this:
+    callSession.answer();
+
+    if (phone.sessions[0] == callSession){
+        // this is the first callSession
+        // you can have multiple in parallel :)
+    }
+
+});
+phone.on('message', function (message) {
+    // message received
+});
+
+
+// do a call
+function call(number){
+    var callSession = phone.call(number);
+    setupCallSession(callSession);
+}
+
+// send a message
+function sendMessage(number, text){
+    phone.message(number, text);
+}
+
+
+// listen for events to change UI
+function setupCallsession(callSession) {
+    callSession.on('connecting', function (session) {
+        // call connecting
+    });
+    callSession.on('connected', function (session) {
+        // call connected
+    });
+    callSession.on('ended', function (session) {
+        // call ended
+    });
+    callSession.on('hold', function (session) {
+        // call placed on hold
+    });
+    callSession.on('unhold', function (session) {
+        // call resumed after hold
+    });
+    callSession.on('dtmf', function (tone) {
+        // dtmf sended
+    });
+}
+
+```
+
 ## Website and Documentation
 
 * [SIPjs.com](https://sipjs.com)
