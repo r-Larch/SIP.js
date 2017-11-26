@@ -4,3 +4,5 @@ dist/sip*
 _SpecRunner.html
 src/Grammar/dist/Grammar.js
 npm-debug.log
+.vs/
+obj/

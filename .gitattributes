@@ -1,1 +1,5 @@
 *.min.js binary
+
+*.sln text eol=crlf
+*.njsproj text eol=crlf
+*.js text eol=lf
