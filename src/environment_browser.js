@@ -22,6 +22,7 @@ module.exports = {
   open: toplevel.open,
   Promise: toplevel.Promise,
   timers: toplevel,
+  document: toplevel.document,
 
   // Console is not defined in ECMAScript, so just in case...
   console: toplevel.console || {

@@ -7,14 +7,17 @@
  * @class CallSession
  */
 
-module.exports = function (SIP) {
+module.exports = function (SIP, document) {
+
+    var AudioPlayer = require('./AudioPlayer')(document);
 
     var C = {
         STATUS_NULL: 0,
         STATUS_NEW: 1,
         STATUS_CONNECTING: 2,
         STATUS_CONNECTED: 3,
-        STATUS_COMPLETED: 4
+        STATUS_COMPLETED: 4,
+        STATUS_INCOMMEING: 5
     };
 
     /*
@@ -24,7 +27,6 @@ module.exports = function (SIP) {
         /*
          *  media = {
          *      remote: {
-         *        audio: <DOM element>,
          *        video: <DOM element>
          *      },
          *      local: {
@@ -35,25 +37,21 @@ module.exports = function (SIP) {
 
         this.phone = phone;
         this.session = session;
+
+        this.ringtone = new AudioPlayer(phone.sounds.ringtone, 'loop');
+        this.ringbacktone = new AudioPlayer(phone.sounds.ringbacktone, 'loop');
+
         this.setupSession();
+        this.connected = false;
+        this.isMute = false;
+        this.isHold = false;
+        this.destination = null;
 
-
-        if (media.remote.video) {
-            this.video = true;
-        } else {
-            this.video = false;
-        }
-
-        if (media.remote.audio) {
+        media.remote = media.remote || {};
+        this.video = media.remote.video ? true : false;
+        if (!this.video) {
             this.audio = true;
-        } else {
-            this.audio = false;
-        }
-
-        if (!this.audio && !this.video) {
-            // Need to do at least audio or video
-            // Error
-            throw new Error('At least one remote audio or video element is required for CallSession.');
+            media.remote.audio = document.body.appendChild(document.createElement("AUDIO"));
         }
 
         this.media = media;
@@ -70,8 +68,6 @@ module.exports = function (SIP) {
             this.media.local.video.volume = 0;
         }
 
-        this.state = C.STATUS_NULL;
-
         this.logger = this.phone.ua.getLogger('sip.CallSession');
 
         return this;
@@ -83,7 +79,7 @@ module.exports = function (SIP) {
     // Public
 
     CallSession.prototype.answer = function () {
-        if (this.state !== C.STATUS_NEW && this.state !== C.STATUS_CONNECTING) {
+        if (this.state !== C.STATUS_NEW && this.state !== C.STATUS_CONNECTING && this.state !== C.STATUS_INCOMMEING) {
             this.logger.warn('No call to answer');
             return;
         }
@@ -107,20 +103,25 @@ module.exports = function (SIP) {
     };
 
     CallSession.prototype.reject = function () {
-        if (this.state !== C.STATUS_NEW && this.state !== C.STATUS_CONNECTING) {
+        if (this.state !== C.STATUS_INCOMMEING) {
             this.logger.warn('Call is already answered');
             return;
         }
         try {
             return this.session.reject();
         } finally {
-            this.phone.ringtone.stop();
-            this.phone.ringbacktone.stop();
+            this.ringtone.stop();
+            this.ringbacktone.stop();
         }
     };
 
     CallSession.prototype.hangup = function () {
         if (this.state !== C.STATUS_CONNECTED && this.state !== C.STATUS_CONNECTING && this.state !== C.STATUS_NEW) {
+            if (this.state === C.STATUS_INCOMMEING) {
+                this.reject();
+                return;
+            }
+
             this.logger.warn('No active call to hang up on');
             return;
         }
@@ -131,8 +132,17 @@ module.exports = function (SIP) {
                 return this.session.bye();
             }
         } finally {
-            this.phone.ringtone.stop();
-            this.phone.ringbacktone.stop();
+            this.ringtone.stop();
+            this.ringbacktone.stop();
+        }
+    };
+
+    CallSession.prototype.toggleHold = function () {
+        if (this.isHold === true) {
+            this.unhold();
+        }
+        else if (this.isHold === false) {
+            this.hold();
         }
     };
 
@@ -143,7 +153,9 @@ module.exports = function (SIP) {
         }
         this.mute();
         this.logger.log('Placing session on hold');
-        return this.session.hold();
+        // TODO Hold should return a promise
+        this.session.hold();
+        this.isHold = true;
     };
 
     CallSession.prototype.unhold = function () {
@@ -153,7 +165,18 @@ module.exports = function (SIP) {
         }
         this.unmute();
         this.logger.log('Placing call off hold');
-        return this.session.unhold();
+        // TODO unHold should return a promise
+        this.session.unhold();
+        this.isHold = false;
+    };
+
+    CallSession.prototype.toggleMute = function () {
+        if (this.isMute) {
+            this.unmute();
+        }
+        else {
+            this.mute();
+        }
     };
 
     CallSession.prototype.mute = function () {
@@ -162,7 +185,7 @@ module.exports = function (SIP) {
             return;
         }
         this.logger.log('Muting Audio');
-        this.toggleMute(true);
+        this.$$toggleMute(true);
     };
 
     CallSession.prototype.unmute = function () {
@@ -171,7 +194,7 @@ module.exports = function (SIP) {
             return;
         }
         this.logger.log('Unmuting Audio');
-        this.toggleMute(false);
+        this.$$toggleMute(false);
     };
 
     CallSession.prototype.sendDTMF = function (tone) {
@@ -191,8 +214,8 @@ module.exports = function (SIP) {
         var pc = this.session.sessionDescriptionHandler.peerConnection;
         var remoteStream;
 
-        this.phone.ringtone.stop();
-        this.phone.ringbacktone.stop();
+        this.ringtone.stop();
+        this.ringbacktone.stop();
 
         if (pc.getReceivers) {
             remoteStream = new global.window.MediaStream();
@@ -256,7 +279,6 @@ module.exports = function (SIP) {
 
     CallSession.prototype.setupSession = function () {
         this.state = C.STATUS_NEW;
-        this.emit('new', this.session);
 
         this.session.on('progress', this.onProgress.bind(this));
         this.session.on('accepted', this.onAccepted.bind(this));
@@ -269,7 +291,7 @@ module.exports = function (SIP) {
         this.session.sessionDescriptionHandler.close();
     };
 
-    CallSession.prototype.toggleMute = function (mute) {
+    CallSession.prototype.$$toggleMute = function (mute) {
         var pc = this.session.sessionDescriptionHandler.peerConnection;
         if (pc.getSenders) {
             pc.getSenders().forEach(function (sender) {
@@ -287,10 +309,12 @@ module.exports = function (SIP) {
                 });
             });
         }
+        this.isMute = mute;
     };
 
     CallSession.prototype.onAccepted = function () {
         this.state = C.STATUS_CONNECTED;
+        this.connected = true;
         this.emit('connected', this.session);
 
         this.setupLocalMedia();
@@ -319,6 +343,7 @@ module.exports = function (SIP) {
 
     CallSession.prototype.onProgress = function () {
         this.state = C.STATUS_CONNECTING;
+        this.connected = false;
         this.emit('connecting', this.session);
     };
 
@@ -328,6 +353,7 @@ module.exports = function (SIP) {
 
     CallSession.prototype.onEnded = function () {
         this.state = C.STATUS_COMPLETED;
+        this.connected = false;
         this.emit('ended', this.session);
         this.cleanupMedia();
     };

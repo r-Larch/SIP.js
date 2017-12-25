@@ -307,8 +307,8 @@ Session.prototype = {
   close: function() {
     var idx;
 
-    if(this.status === C.STATUS_TERMINATED) {
-      return this;
+    if (this.status === C.STATUS_TERMINATED) {
+        return this;
     }
 
     this.logger.log('closing INVITE session ' + this.id);
@@ -793,18 +793,16 @@ Session.prototype = {
     return this;
   },
 
-  terminated: function(message, cause) {
-    if (this.status === C.STATUS_TERMINATED) {
-      return this;
-    }
+  terminated: function (message, cause) {
 
     this.endTime = new Date();
+    this.emit('terminated',
+        message || null,
+        cause || null
+    );
 
     this.close();
-    this.emit('terminated',
-      message || null,
-      cause || null
-    );
+
     return this;
   },
 

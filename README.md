@@ -17,18 +17,14 @@ This is not released now!
 
 var phone = new SIP.WebRTC.Phone({
     media: {
-        remote: {
-            audio: $('<audio></audio>').appendTo('body')[0],
-            video: $('<video></video>').appendTo('body')[0]
-        },
         local: {
             video: $('<video muted></video>').appendTo('body')[0]
         }
     },
     sounds: {
-        dtmf: $('<audio><source src="/content/sounds/dtmf.wav" type="audio/mpeg"/></audio>').appendTo('body')[0],
-        ringtone: $('<audio><source src="/content/sounds/ringtone.wav" type="audio/mpeg"/></audio>').appendTo('body')[0],
-        ringbacktone: $('<audio><source src="/content/sounds/ringbacktone.wav" type="audio/mpeg"/></audio>').appendTo('body')[0]
+        dtmf: "/content/sounds/dtmf.wav",
+        ringtone: "/content/sounds/ringtone.wav",
+        ringbacktone: "/content/sounds/ringbacktone.wav"
     },
     ua: {
         wsServers: ['wss://my.webrtc.endpoint.com:8089/ws'],
@@ -50,7 +46,7 @@ phone.on('ringing', function (calSession) {
     // answare the call by simply do this:
     callSession.answer();
 
-    if (phone.sessions[0] == callSession){
+    if (phone.sessions[0] === callSession){
         // this is the first callSession
         // you can have multiple in parallel :)
     }
@@ -92,6 +88,13 @@ function setupCallsession(callSession) {
     });
     callSession.on('dtmf', function (tone) {
         // dtmf sended
+    });
+
+	callSession.session.on('failed', function (e) {
+    	console.log("Call failed: " + e.status_code + ' ' + e.reason_phrase);
+    });
+    callSession.session.on("rejected", function(e) {
+        // rejected
     });
 }
 

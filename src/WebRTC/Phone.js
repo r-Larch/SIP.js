@@ -7,10 +7,10 @@
  * @class Phone
  */
 
-module.exports = function (SIP) {
+module.exports = function (SIP, document) {
 
-    var CallSession = require('./Phone/CallSession')(SIP);
-    var AudioPlayer = require('./Phone/AudioPlayer')();
+    var CallSession = require('./Phone/CallSession')(SIP, document);
+    var AudioPlayer = require('./Phone/AudioPlayer')(document);
 
     /*
      * @param {Object} options
@@ -19,18 +19,14 @@ module.exports = function (SIP) {
         /*
          *  {
          *    media: {
-         *      remote: {
-         *        audio: <DOM element>,
-         *        video: <DOM element>
-         *      },
          *      local: {
          *        video: <DOM element>
          *      }
          *    },
          *    sounds: {
-         *      dtmf: <audio DOM element>,
-         *      ringtone: <audio DOM element>
-         *      ringbacktone: <audio DOM element>
+         *      dtmf: /audio/source/file.mp3,
+         *      ringtone: /audio/source/file.mp3
+         *      ringbacktone: /audio/source/file.mp3
          *    },
          *    ua: {
          *       <UA Configuration Options (optional)>
@@ -40,20 +36,11 @@ module.exports = function (SIP) {
 
         this.sessions = [];
 
-        this.dtmfTone = new AudioPlayer(options.sounds.dtmf);
-        this.ringtone = new AudioPlayer(options.sounds.ringtone, 'loop');
-        this.ringbacktone = new AudioPlayer(options.sounds.ringbacktone, 'loop');
-
-        this.video = options.media.remote.video ? true : false;
-        this.audio = options.media.remote.audio ? true : false;
-
-        if (!this.audio && !this.video) {
-            // Need to do at least audio or video
-            throw new Error('At least one remote audio or video element is required for Phone.');
-        }
-
         this.options = options;
+        this.sounds = options.sounds || {};
         var uaOptions = options.ua || {};
+
+        this.dtmfTone = new AudioPlayer(this.sounds.dtmf);
 
         // Fixed Options
         uaOptions.register = true;
@@ -83,8 +70,21 @@ module.exports = function (SIP) {
 
         this.ua.on('invite', function (session) {
             var callSession = new CallSession(this, session, this.options.media);
+            callSession.state = CallSession.C.STATUS_INCOMMEING;
+            callSession.isRinging = true;
+            //callSession.destination = null; // contact: "<sip:lidbg2d2@1qhgrcesff4s.invalid;transport=ws>"
             this.addCallSession(callSession);
-            this.ringbacktone.start();
+            callSession.ringtone.start();
+
+            session.on('accepted', function () {
+                callSession.ringtone.stop();
+                callSession.isRinging = false;
+            });
+            callSession.on('ended', function () {
+                callSession.ringtone.stop();
+                callSession.isRinging = false;
+            });
+
             this.emit('ringing', callSession);
         }.bind(this));
 
@@ -99,7 +99,7 @@ module.exports = function (SIP) {
 
     // Public
 
-    Phone.prototype.call = function (destination) {
+    Phone.prototype.call = function (destination, videoElement) {
         if (!this.ua || !this.checkRegistration()) {
             this.logger.warn('A registered UA is required for calling');
             return;
@@ -108,22 +108,23 @@ module.exports = function (SIP) {
         var session = this.ua.invite(destination, {
             sessionDescriptionHandlerOptions: {
                 constraints: {
-                    audio: this.audio,
-                    video: this.video
+                    audio: videoElement == null,
+                    video: videoElement != null
                 }
             }
         });
 
+        var media = Object.assign({}, this.options.media, { remote: { video: videoElement } });
+        var callSession = new CallSession(this, session, media);
+        this.addCallSession(callSession);
+
         session.on('connecting', function () {
-            this.ringbacktone.start();
-        }.bind(this));
+            callSession.ringbacktone.start();
+        });
 
         session.on('terminated', function () {
-            this.ringbacktone.stop();
-        }.bind(this));
-
-        var callSession = new CallSession(this, session, this.options.media);
-        this.addCallSession(callSession);
+            callSession.ringbacktone.stop();
+        });
 
         return callSession;
     };
@@ -152,8 +153,12 @@ module.exports = function (SIP) {
 
         callSession.on('ended', function() {
             var i = this.sessions.indexOf(callSession);
-            this.sessions.splice(i, 1);
+            if (i !== -1) {
+                this.sessions.splice(i, 1);
+            }
         }.bind(this));
+
+        this.emit('new', callSession);
     };
 
     return Phone;

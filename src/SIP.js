@@ -46,7 +46,7 @@ SIP.Grammar = require('./Grammar')(SIP);
 SIP.WebRTC = {
   Modifiers: require('./WebRTC/Modifiers')(SIP),
   //Simple: require('./WebRTC/Simple')(SIP),
-  Phone: require('./WebRTC/Phone')(SIP)
+  Phone: require('./WebRTC/Phone')(SIP, environment.document)
 };
 
 return SIP;

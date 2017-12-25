@@ -7,13 +7,17 @@
  * @class AudioPlayer
  */
 
-module.exports = function () {
+module.exports = function (document) {
 
     /*
      * @param {DOMElement} audioElement
      * @param {String} flag like 'loop', 'mute', etc..
      */
-    function AudioPlayer(audioElement, flag) {
+    function AudioPlayer(source, flag) {
+        var audioElement = document.createElement("AUDIO");
+        audioElement.src = source;
+        audioElement.setAttribute("type", "audio/mpeg");
+        document.body.appendChild(audioElement);
         this.element = audioElement;
         if (flag) {
             this.element[flag] = true;
